@@ -18,5 +18,5 @@ nybikes <- readOGR("C:/Users/lakna/OneDrive/Desktop/R Shiny Operations Mgmt/Fina
 
 
 leaflet(data = nybikes) %>%
-  addProviderTiles("Esri.WorldTerrain")%>%
+  addProviderTiles("Esri.NatGeoWorldMap")%>%
   addPolylines(color = "#63CBD3",popup = ~street)
