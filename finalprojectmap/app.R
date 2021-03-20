@@ -1,11 +1,13 @@
 library(shiny)
 library(shinythemes)
+library(shinydashboard)
 library(leaflet)
 library(leaflet.extras)
 library(rgdal)
 library(shinyjs)
 library(rgeos)
 library(plotly)
+library(DT)
 
 # Avoid plotly issues ----------------------------------------------
 pdf(NULL)
@@ -34,7 +36,11 @@ ui <- navbarPage("NYC Cycling Guide",
                               "Bike Lane Type:",
                               choices = unique(nybikes.load$tf_facilit),
                               selected = c("Sharrows")),
+
+                  #Adding a Download Button
+                  downloadButton("downloadData", "Download"),
                   
+                                    
                   sliderInput("numbikes",
                               "Number of bikes Requested",
                               min = min(df$NoOfBicycleRequested,na.rm = T),
@@ -42,7 +48,7 @@ ui <- navbarPage("NYC Cycling Guide",
                               value = c(min(df$NoOfBicycleRequested,na.rm = T),max(df$NoOfBicycleRequested,na.rm = T)),
                               step =1)     
                   ),
-                  
+
                   # Map Panel
                   mainPanel(
                     shinyjs::useShinyjs(),
@@ -58,9 +64,18 @@ ui <- navbarPage("NYC Cycling Guide",
             ),
             
             # Data Table Pannel
-            tabPanel("Data",
-                     fluidPage(plotlyOutput("plot_type"))
-  )
+            tabPanel("Bikes Requested",
+                     tabBox(
+                       tabPanel("Bikes Requested",plotlyOutput("plot_type")),
+                       tabPanel("Building Owners",plotlyOutput("ownertype"))
+    )
+  ),
+          tabPanel("Data",
+              fluidPage(DT::dataTableOutput(outputId = "datasummary") 
+                
+            )
+            
+          )
 )
                  
                  
@@ -154,6 +169,31 @@ server <- function(input, output)  {
       ylab("Number of Requests")+theme_light()
   })
   
+  output$ownertype <- renderPlotly({
+    dat <- bikereqinput()
+    bikereq<- dat%>%group_by(OwnerName)%>%summarize(n=n())%>%arrange(desc(n))%>%head(10)
+    ggplot(data = bikereq)+geom_bar(aes(x = OwnerName,y=n),stat = "identity")+coord_flip()
+    
+
+      
+  })
+  
+  # Print data table if checked -------------------------------------
+  output$datasummary <- DT::renderDataTable(DT::datatable(data = df[, 1:7], 
+                    options = list(pageLength = 10), 
+                    rownames = FALSE)
+  )
+  
+  # Assigning the data to the download button
+  data <- df
+  output$downloadData <- downloadHandler(
+    filename = function() {
+      paste("data-", Sys.Date(), ".csv", sep="")
+    },
+    content = function(file) {
+      write.csv(data, file)
+    }
+  )
   
 }
 
