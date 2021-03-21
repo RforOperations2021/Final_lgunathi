@@ -1,5 +1,4 @@
 library(shiny)
-library(shinythemes)
 library(shinydashboard)
 library(leaflet)
 library(leaflet.extras)
@@ -8,13 +7,14 @@ library(shinyjs)
 library(rgeos)
 library(plotly)
 library(DT)
+library(dplyr)
 
 # Avoid plotly issues ----------------------------------------------
 pdf(NULL)
 
 # Data Source
 #https://data.cityofnewyork.us/Transportation/Bicycle-Routes/7vsa-caz7
-nybikes.load <- readOGR("C:/Users/lakna/OneDrive/Desktop/R Shiny Operations Mgmt/Final_lgunathi/datacleaning/Bicycle Routes")
+nybikes.load <- readOGR("C:/Users/lakna/OneDrive/Desktop/R Shiny Operations Mgmt/Final_lgunathi/finalprojectmap/Bicycle Routes")
 bikeracks.load <- readOGR("C:/Users/lakna/OneDrive/Desktop/R Shiny Operations Mgmt/Final_lgunathi/finalprojectmap/cityracks-shp")
 df <- read.csv("Bikes_in_Buildings_Requests.csv")
 
@@ -35,26 +35,29 @@ ui <- navbarPage("NYC Cycling Guide",
                   selectInput("laneSelect",
                               "Bike Lane Type:",
                               choices = unique(nybikes.load$tf_facilit),
-                              selected = c("Sharrows")),
+                              selected = c("Sharrows"),
+                              multiple = T),
 
                   #Adding a Download Button
                   downloadButton("downloadData", "Download"),
                   
-                                    
+
                   sliderInput("numbikes",
-                              "Number of bikes Requested",
+                              "Number of Bikes Requested",
                               min = min(df$NoOfBicycleRequested,na.rm = T),
                               max = max(df$NoOfBicycleRequested,na.rm = T),
                               value = c(min(df$NoOfBicycleRequested,na.rm = T),max(df$NoOfBicycleRequested,na.rm = T)),
                               step =1)     
                   ),
-
+                  
+              
+                  
                   # Map Panel
                   mainPanel(
                     shinyjs::useShinyjs(),
                     # Style the background and change the page
                     tags$style(type = "text/css", ".leaflet {height: calc(100vh - 90px) !important;}
-                               body {background-color: #D4EFDF;}"),
+                               body {background-color: #BCECE0;}"),
                     #Map page
                     leafletOutput("leaflet")
                     
@@ -64,9 +67,9 @@ ui <- navbarPage("NYC Cycling Guide",
             ),
             
             # Data Table Pannel
-            tabPanel("Bikes Requested",
+            tabPanel("Bikes Requested in Buildings",
                      tabBox(
-                       tabPanel("Bikes Requested",plotlyOutput("plot_type")),
+                       tabPanel("Bikes Requested in Buildings",plotlyOutput("plot_type")),
                        tabPanel("Building Owners",plotlyOutput("ownertype"))
     )
   ),
@@ -93,7 +96,7 @@ server <- function(input, output)  {
   #})
   output$leaflet <- renderLeaflet({
   leaflet() %>%
-    addProviderTiles("Esri.NatGeoWorldMap") %>%
+    addProviderTiles("Stamen.Terrain") %>%
     #addCircleMarkers(data = bikeracks, lng = ~Longitude, lat = ~Latitude,radius = 0.5)%>%
     setView(-74.0060, 40.7128, 9) 
   })
@@ -114,17 +117,14 @@ server <- function(input, output)  {
     leafletProxy("leaflet", data = boros) %>%
     clearGroup(group = "boros")%>%
     addCircleMarkers(lng = ~Longitude, lat = ~Latitude,radius = 0.5,group = "boros")%>%
-    setView(lng = boros$Longitude[1],lat = boros$Latitude[1],zoom = 9)  
+    setView(lng = boros$Longitude[1],lat = boros$Latitude[1],zoom = 12)  
   })
   
   #reactive function for lanes
   laneInfInput <- reactive({
     laneInf <- nybikes.load
     
-   # req(input$boroSelect)
-    
-    #Boros
-    #laneInf <- subset(laneInf,Borough == input$boroselect)
+
     
     #Lane
     if(length(input$laneSelect)>0){
@@ -135,11 +135,12 @@ server <- function(input, output)  {
     
   })
   
+
   #Adding the leaflet layer
   observe({
     laneInf <- laneInfInput()
     leafletProxy("leaflet",data = laneInf)%>%
-    addPolylines(color = "#63CBD3", popup = ~street)
+    addPolylines(color = "#F652A0", popup = ~street)
     
   })
   
@@ -195,6 +196,23 @@ server <- function(input, output)  {
     }
   )
   
+  # Enable button once a marker has been selected
+  observeEvent(input$leaflet_marker_click$id, {
+    enable("delete")
+  })
+  
+  # Add layerID to list of removed projects
+  observeEvent(input$delete, {
+    enable("restore")
+    isolate({
+      values$removed <- c(values$removed, input$leaflet_marker_click$id)
+    })
+  })
+  # Reset removed Projects
+  observeEvent(input$restore, {
+    values$removed <- c()
+    disable("restore")
+  })
 }
 
 
